@@ -30,7 +30,8 @@ from typing import Callable, Dict, List, Optional, Text, Union
 
 import torch
 import torch.nn as nn
-import yaml
+#import yaml
+from pyannote.audio.core.yaml_loader import load_yaml
 from huggingface_hub import hf_hub_download
 from huggingface_hub.utils import RepositoryNotFoundError
 from pyannote.core.utils.helper import get_class_by_name
@@ -120,8 +121,7 @@ visit https://hf.co/{model_id} to accept the user conditions."""
                 )
                 return None
 
-        with open(config_yml, "r") as fp:
-            config = yaml.load(fp, Loader=yaml.SafeLoader)
+        config = load_yaml(config_yml)
 
         if "version" in config:
             check_version(
