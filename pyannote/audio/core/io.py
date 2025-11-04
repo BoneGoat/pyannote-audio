@@ -40,6 +40,8 @@ import torchaudio
 from pyannote.core import Segment
 from torch import Tensor
 
+from pyannote.torchaudio._backend import AudioMetaData, list_audio_backends, info as torchaudio_info
+
 AudioFile = Union[Text, Path, IOBase, Mapping]
 
 AudioFileDocString = """
@@ -57,7 +59,7 @@ integer to load a specific channel: {"audio": "stereo.wav", "channel": 0}
 
 def get_torchaudio_info(
     file: AudioFile, backend: str = None
-) -> torchaudio.AudioMetaData:
+) -> AudioMetaData:
     """Protocol preprocessor used to cache output of torchaudio.info
 
     This is useful to speed future random access to this file, e.g.
@@ -78,11 +80,11 @@ def get_torchaudio_info(
 
     if not backend:
         backends = (
-            torchaudio.list_audio_backends()
+            list_audio_backends()
         )  # e.g ['ffmpeg', 'soundfile', 'sox']
         backend = "soundfile" if "soundfile" in backends else backends[0]
 
-    info = torchaudio.info(file["audio"], backend=backend)
+    info = torchaudio_info(file["audio"], backend=backend)
 
     # rewind if needed
     if isinstance(file["audio"], IOBase):
@@ -209,7 +211,7 @@ class Audio:
 
         if not backend:
             backends = (
-                torchaudio.list_audio_backends()
+                list_audio_backends()
             )  # e.g ['ffmpeg', 'soundfile', 'sox']
             backend = "soundfile" if "soundfile" in backends else backends[0]
 
