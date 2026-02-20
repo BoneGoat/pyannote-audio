@@ -20,4 +20,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-__import__("pkg_resources").declare_namespace(__name__)
+#__import__("pkg_resources").declare_namespace(__name__)
