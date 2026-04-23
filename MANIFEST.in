@@ -4,3 +4,6 @@ recursive-include pyannote *.wav
 recursive-include pyannote *.rttm
 global-exclude *.pyc
 global-exclude __pycache__
+include requirements.txt
+include version.txt
+include LICENSE
