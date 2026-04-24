@@ -3,13 +3,13 @@ import torchaudio
 from pyannote.core import Segment
 from torch import Tensor
 
-from pyannote.audio.core.io import Audio
+from pyannote.audio.core.io import Audio, get_torchaudio_info
 
 
 def test_audio_resample():
     "Audio is correctly resampled when it isn't the correct sample rate"
     test_file = "tests/data/dev00.wav"
-    info = torchaudio.info(test_file)
+    info = get_torchaudio_info({"audio": test_file})
     old_sr = info.sample_rate
     loader = Audio(sample_rate=old_sr // 2, mono="downmix")
     wav, sr = loader(test_file)

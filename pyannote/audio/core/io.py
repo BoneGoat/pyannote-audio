@@ -32,15 +32,46 @@ import random
 import warnings
 from io import IOBase
 from pathlib import Path
-from typing import Mapping, Optional, Text, Tuple, Union
+from typing import Mapping, NamedTuple, Optional, Text, Tuple, Union
 
 import numpy as np
+import torch
 import torch.nn.functional as F
 import torchaudio
 from pyannote.core import Segment
 from torch import Tensor
 
+from pyannote.audio.utils.audio_loader import (
+    TORCHCODEC_AVAILABLE,
+    _get_torchaudio_info_obj,
+    load_audio,
+)
+
 AudioFile = Union[Text, Path, IOBase, Mapping]
+
+from pyannote.audio.utils.audio_loader import _TorchaudioInfo
+
+
+def get_torchaudio_info(file: AudioFile, backend: str = None) -> _TorchaudioInfo:
+    """Get torchaudio info for an audio file.
+
+    In older torchaudio versions, info() returned an AudioMetaData object.
+    In newer versions, the return type changed. This function ensures compatibility.
+
+    Parameters
+    ----------
+    file : AudioFile
+        Audio file to get info for.
+    backend : str, optional
+        torchaudio backend to use. Defaults to 'soundfile' if available,
+        or the first available backend.
+
+    Returns
+    -------
+    _TorchaudioInfo
+        NamedTuple with num_frames and sample_rate attributes.
+    """
+    return _get_torchaudio_info_obj(file, backend=backend)
 
 AudioFileDocString = """
 Audio files can be provided to the Audio class using different types:
@@ -53,42 +84,6 @@ Audio files can be provided to the Audio class using different types:
 For last two options, an additional "channel" key can be provided as a zero-indexed
 integer to load a specific channel: {"audio": "stereo.wav", "channel": 0}
 """
-
-
-def get_torchaudio_info(
-    file: AudioFile, backend: str = None
-) -> torchaudio.AudioMetaData:
-    """Protocol preprocessor used to cache output of torchaudio.info
-
-    This is useful to speed future random access to this file, e.g.
-    in dataloaders using Audio.crop a lot....
-
-    Parameters
-    ----------
-    file : AudioFile
-    backend : str
-        torchaudio backend to use. Defaults to 'soundfile' if available,
-        or the first available backend.
-
-    Returns
-    -------
-    info : torchaudio.AudioMetaData
-        Audio file metadata
-    """
-
-    if not backend:
-        backends = (
-            torchaudio.list_audio_backends()
-        )  # e.g ['ffmpeg', 'soundfile', 'sox']
-        backend = "soundfile" if "soundfile" in backends else backends[0]
-
-    info = torchaudio.info(file["audio"], backend=backend)
-
-    # rewind if needed
-    if isinstance(file["audio"], IOBase):
-        file["audio"].seek(0)
-
-    return info
 
 
 class Audio:
@@ -208,10 +203,9 @@ class Audio:
         self.mono = mono
 
         if not backend:
-            backends = (
-                torchaudio.list_audio_backends()
-            )  # e.g ['ffmpeg', 'soundfile', 'sox']
-            backend = "soundfile" if "soundfile" in backends else backends[0]
+            # torchaudio.list_audio_backends() was removed in torchaudio 2.11+
+            # Default to 'soundfile' which is widely supported
+            backend = "soundfile"
 
         self.backend = backend
 
@@ -272,10 +266,10 @@ class Audio:
             sample_rate = file["sample_rate"]
 
         else:
-            if "torchaudio.info" in file:
-                info = file["torchaudio.info"]
+            if "_get_torchaudio_info_obj" in file:
+                info = file["_get_torchaudio_info_obj"]
             else:
-                info = get_torchaudio_info(file, backend=self.backend)
+                info = _get_torchaudio_info_obj(file, backend=self.backend)
 
             frames = info.num_frames
             sample_rate = info.sample_rate
@@ -322,11 +316,7 @@ class Audio:
             sample_rate = file["sample_rate"]
 
         elif "audio" in file:
-            waveform, sample_rate = torchaudio.load(file["audio"], backend=self.backend)
-
-            # rewind if needed
-            if isinstance(file["audio"], IOBase):
-                file["audio"].seek(0)
+            waveform, sample_rate = load_audio(file["audio"])
 
         channel = file.get("channel", None)
 
@@ -374,15 +364,18 @@ class Audio:
             frames = waveform.shape[1]
             sample_rate = file["sample_rate"]
 
-        elif "torchaudio.info" in file:
-            info = file["torchaudio.info"]
+        elif "_get_torchaudio_info_obj" in file:
+            info = file["_get_torchaudio_info_obj"]
             frames = info.num_frames
             sample_rate = info.sample_rate
 
         else:
-            info = get_torchaudio_info(file, backend=self.backend)
+            info = _get_torchaudio_info_obj(file, backend=self.backend)
             frames = info.num_frames
             sample_rate = info.sample_rate
+            # Rewind file if it's a file-like object (for subsequent load_audio call)
+            if isinstance(file["audio"], IOBase):
+                file["audio"].seek(0)
 
         channel = file.get("channel", None)
 
@@ -431,20 +424,13 @@ class Audio:
 
         else:
             try:
-                data, _ = torchaudio.load(
-                    file["audio"],
-                    frame_offset=start_frame,
-                    num_frames=num_frames,
-                    backend=self.backend,
+                # Use load_audio which prefers torchcodec (supports native seeking)
+                # with soundfile fallback
+                data, sample_rate = load_audio(
+                    file["audio"], frame_offset=start_frame, num_frames=num_frames
                 )
-                # rewind if needed
-                if isinstance(file["audio"], IOBase):
-                    file["audio"].seek(0)
             except RuntimeError:
-                if isinstance(file["audio"], IOBase):
-                    msg = "torchaudio failed to seek-and-read in file-like object."
-                    raise RuntimeError(msg)
-
+                # Failed to seek-and-read: load the whole file instead
                 msg = (
                     f"torchaudio failed to seek-and-read in {file['audio']}: "
                     f"loading the whole file instead."

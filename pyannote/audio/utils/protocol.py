@@ -23,7 +23,6 @@
 from functools import partial
 from typing import Optional
 
-import torchaudio
 from pyannote.core import Annotation
 from pyannote.database import FileFinder, Protocol, get_annotated
 from pyannote.database.protocol import SpeakerVerificationProtocol
@@ -90,14 +89,8 @@ def check_protocol(protocol: Protocol) -> Protocol:
                 print(msg)
 
     if "waveform" not in file and "torchaudio.info" not in file:
-        # use soundfile when available (it usually is faster than ffmpeg for getting info)
-        backends = (
-            torchaudio.list_audio_backends()
-        )  # e.g ['ffmpeg', 'soundfile', 'sox']
-        backend = "soundfile" if "soundfile" in backends else backends[0]
-        protocol.preprocessors["torchaudio.info"] = partial(
-            get_torchaudio_info, backend=backend
-        )
+        # Use get_torchaudio_info which prefers torchcodec with soundfile fallback
+        protocol.preprocessors["torchaudio.info"] = get_torchaudio_info
         msg = (
             f"Protocol {protocol.name} does not precompute the output of torchaudio.info(): "
             f"adding a 'torchaudio.info' preprocessor for you to speed up dataloaders. "

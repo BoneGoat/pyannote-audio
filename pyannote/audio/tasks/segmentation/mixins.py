@@ -31,7 +31,7 @@ import torch
 from pyannote.database.protocol.protocol import Scope, Subset
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
 from torch.utils.data._utils.collate import default_collate
-from torchaudio import AudioMetaData
+# AudioMetaData was removed from torchaudio in 2.11+
 from torchmetrics import Metric
 from torchmetrics.classification import BinaryAUROC, MulticlassAUROC, MultilabelAUROC
 
@@ -57,7 +57,14 @@ class SegmentationTask(Task):
         num_frames = _audio_info["num_frames"]
         num_channels = _audio_info["num_channels"]
         bits_per_sample = _audio_info["bits_per_sample"]
-        file["torchaudio.info"] = AudioMetaData(
+        # Use a simple dict instead of AudioMetaData (removed in torchaudio 2.11+)
+        # This provides the same attributes that the code accesses
+        class _AudioMetaData:
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+
+        file["torchaudio.info"] = _AudioMetaData(
             sample_rate=sample_rate,
             num_frames=num_frames,
             num_channels=num_channels,
