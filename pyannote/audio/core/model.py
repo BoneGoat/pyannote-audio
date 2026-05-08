@@ -678,6 +678,7 @@ visit https://hf.co/{model_id} to accept the user conditions."""
             model = Klass.load_from_checkpoint(
                 path_for_pl,
                 map_location=map_location,
+                weights_only=False,
                 hparams_file=hparams_file,
                 strict=strict,
                 **kwargs,
@@ -693,6 +694,7 @@ visit https://hf.co/{model_id} to accept the user conditions."""
                 model = Klass.load_from_checkpoint(
                     path_for_pl,
                     map_location=map_location,
+                    weights_only=False,
                     hparams_file=hparams_file,
                     strict=False,
                     **kwargs,
