@@ -668,7 +668,7 @@ visit https://hf.co/{model_id} to accept the user conditions."""
             map_location = default_map_location
 
         # obtain model class from the checkpoint
-        loaded_checkpoint = pl_load(path_for_pl, map_location=map_location)
+        loaded_checkpoint = pl_load(path_for_pl, map_location=map_location, weights_only=False)
         module_name: str = loaded_checkpoint["pyannote.audio"]["architecture"]["module"]
         module = import_module(module_name)
         class_name: str = loaded_checkpoint["pyannote.audio"]["architecture"]["class"]
